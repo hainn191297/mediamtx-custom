@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -158,4 +160,32 @@ func (l *Logger) Log(level Level, format string, args ...any) {
 	for _, dest := range l.destinations {
 		dest.log(t, level, format, args...)
 	}
+}
+
+// LogFields writes a log entry with structured key-value fields appended.
+// Fields are sorted by key for deterministic output.
+// In plain mode:      "msg key=val key=val"
+// In structured mode: message includes fields inline (future: promote to JSON keys).
+func (l *Logger) LogFields(level Level, msg string, fields map[string]string) {
+	if level < l.Level || len(fields) == 0 {
+		l.Log(level, "%s", msg)
+		return
+	}
+
+	keys := make([]string, 0, len(fields))
+	for k := range fields {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	b.WriteString(msg)
+	for _, k := range keys {
+		b.WriteByte(' ')
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(fields[k])
+	}
+
+	l.Log(level, "%s", b.String())
 }

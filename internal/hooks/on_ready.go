@@ -32,7 +32,7 @@ func OnReady(params OnReadyParams) func() {
 	}
 
 	if params.Conf.RunOnReady != "" {
-		params.Logger.Log(logger.Info, "runOnReady command started")
+		params.Logger.Log(logger.Info, "runOnReady command started traceparent=%s", env["MTX_TRACEPARENT"])
 		onReadyCmd = externalcmd.NewCmd(
 			params.ExternalCmdPool,
 			params.Conf.RunOnReady,
@@ -46,11 +46,11 @@ func OnReady(params OnReadyParams) func() {
 	return func() {
 		if onReadyCmd != nil {
 			onReadyCmd.Close()
-			params.Logger.Log(logger.Info, "runOnReady command stopped")
+			params.Logger.Log(logger.Info, "runOnReady command stopped traceparent=%s", env["MTX_TRACEPARENT"])
 		}
 
 		if params.Conf.RunOnNotReady != "" {
-			params.Logger.Log(logger.Info, "runOnNotReady command launched")
+			params.Logger.Log(logger.Info, "runOnNotReady command launched traceparent=%s", env["MTX_TRACEPARENT"])
 			externalcmd.NewCmd(
 				params.ExternalCmdPool,
 				params.Conf.RunOnNotReady,

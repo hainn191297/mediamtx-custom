@@ -98,6 +98,7 @@ type path struct {
 	onlineTime                     time.Time
 	onUnDemandHook                 func(string)
 	onNotReadyHook                 func()
+	traceparent                    string // stable W3C traceparent for this publish session
 	readers                        map[defs.Reader]struct{}
 	describeRequestsOnHold         []defs.PathDescribeReq
 	readerAddRequestsOnHold        []defs.PathAddReaderReq
@@ -162,7 +163,11 @@ func (pa *path) wait() {
 
 // Log implements logger.Writer.
 func (pa *path) Log(level logger.Level, format string, args ...any) {
-	pa.parent.Log(level, "[path "+pa.name+"] "+format, args...)
+	if pa.traceparent != "" {
+		pa.parent.Log(level, "[path "+pa.name+"] [traceparent="+pa.traceparent+"] "+format, args...)
+	} else {
+		pa.parent.Log(level, "[path "+pa.name+"] "+format, args...)
+	}
 }
 
 func (pa *path) Name() string {
@@ -700,11 +705,16 @@ func (pa *path) SafeConf() *conf.Path {
 
 func (pa *path) ExternalCmdEnv() externalcmd.Environment {
 	_, port, _ := net.SplitHostPort(pa.rtspAddress)
+	// Generate traceparent once per publish session so hook calls and internal
+	// logs share the same trace_id for cross-service correlation.
+	if pa.traceparent == "" {
+		pa.traceparent = externalcmd.NewTraceparent()
+	}
 	env := externalcmd.Environment{
 		"MTX_PATH":        pa.name,
 		"RTSP_PATH":       pa.name, // deprecated
 		"RTSP_PORT":       port,
-		"MTX_TRACEPARENT": externalcmd.NewTraceparent(),
+		"MTX_TRACEPARENT": pa.traceparent,
 	}
 
 	if len(pa.matches) > 1 {
@@ -851,6 +861,7 @@ func (pa *path) consumeOnHoldRequests() {
 }
 
 func (pa *path) setNotAvailable() {
+	pa.traceparent = "" // reset so next publish session gets a fresh traceparent
 	pa.parent.setPathNotReady(pa)
 
 	for r := range pa.readers {
